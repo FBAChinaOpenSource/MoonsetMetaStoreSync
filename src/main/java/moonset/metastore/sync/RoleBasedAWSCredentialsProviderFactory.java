@@ -3,12 +3,11 @@ package moonset.metastore.sync;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.STSAssumeRoleSessionCredentialsProvider;
 import com.amazonaws.glue.catalog.metastore.AWSCredentialsProviderFactory;
-
-import java.util.UUID;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.conf.Configuration;
+
+import java.util.UUID;
 
 public class RoleBasedAWSCredentialsProviderFactory implements AWSCredentialsProviderFactory {
 
@@ -23,13 +22,13 @@ public class RoleBasedAWSCredentialsProviderFactory implements AWSCredentialsPro
 
 
     @Override
-    public AWSCredentialsProvider buildAWSCredentialsProvider(HiveConf hiveConf) {
-        String assumeRole = hiveConf.get(ASSUME_ROLE);
+    public AWSCredentialsProvider buildAWSCredentialsProvider(Configuration configuration) {
+        String assumeRole = configuration.get(ASSUME_ROLE);
         log.info("The assume role is " + assumeRole);
         return new STSAssumeRoleSessionCredentialsProvider.Builder(
                 assumeRole, ROLE_SESSION_NAME_PREFIX +
                 UUID.randomUUID().getMostSignificantBits()) // Using UUID to make the session name unique among multiple sessions
-            .withRoleSessionDurationSeconds(ROLE_SESSION_TIMEOUT_SECONDS)
-            .build();
+                .withRoleSessionDurationSeconds(ROLE_SESSION_TIMEOUT_SECONDS)
+                .build();
     }
 }
