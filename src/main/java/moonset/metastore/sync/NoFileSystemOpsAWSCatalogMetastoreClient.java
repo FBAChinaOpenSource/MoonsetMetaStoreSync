@@ -3,30 +3,19 @@ package moonset.metastore.sync;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.glue.catalog.converters.CatalogToHiveConverter;
 import com.amazonaws.glue.catalog.converters.GlueInputConverter;
+import com.amazonaws.glue.catalog.converters.Hive3CatalogToHiveConverter;
 import com.amazonaws.glue.catalog.converters.HiveToCatalogConverter;
 import com.amazonaws.glue.catalog.metastore.AWSCatalogMetastoreClient;
 import com.amazonaws.glue.catalog.util.BatchCreatePartitionsHelper;
+import com.amazonaws.glue.catalog.util.MetastoreClientUtils;
 import com.amazonaws.services.glue.AWSGlue;
 import com.amazonaws.services.glue.model.CreateTableRequest;
 import com.amazonaws.services.glue.model.Partition;
-import com.amazonaws.services.glue.model.Table;
 import com.amazonaws.services.glue.model.TableInput;
 import com.amazonaws.services.glue.model.UpdateTableRequest;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-
-import java.lang.reflect.Field;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-
 import lombok.extern.slf4j.Slf4j;
-
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.InvalidObjectException;
 import org.apache.hadoop.hive.metastore.api.InvalidOperationException;
@@ -34,6 +23,13 @@ import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.thrift.TException;
+
+import java.lang.reflect.Field;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 /**
  * Wrapper of AWSCatalogMetastoreClient. Only comment out the file system(warehouse) operators since
@@ -47,14 +43,19 @@ import org.apache.thrift.TException;
 @Slf4j
 public class NoFileSystemOpsAWSCatalogMetastoreClient extends AWSCatalogMetastoreClient {
 
-    public NoFileSystemOpsAWSCatalogMetastoreClient(HiveConf conf) throws MetaException {
-        super(conf);
-    }
-
     private static final int BATCH_CREATE_PARTITIONS_PAGE_SIZE = 100;
     private static final int BATCH_CREATE_PARTITIONS_THREADS_COUNT = 5;
     private static final ExecutorService BATCH_CREATE_PARTITIONS_THREAD_POOL =
             Executors.newFixedThreadPool(BATCH_CREATE_PARTITIONS_THREADS_COUNT);
+    
+    private final String catalogId;
+    private final CatalogToHiveConverter catalogToHiveConverter;
+
+    public NoFileSystemOpsAWSCatalogMetastoreClient(HiveConf conf) throws MetaException {
+        super(conf);
+        this.catalogId = MetastoreClientUtils.getCatalogId(conf);
+        this.catalogToHiveConverter = new Hive3CatalogToHiveConverter();
+    }
 
     @Override
     public void createDatabase(org.apache.hadoop.hive.metastore.api.Database database)
@@ -79,7 +80,7 @@ public class NoFileSystemOpsAWSCatalogMetastoreClient extends AWSCatalogMetastor
 
                    getClient().createTable(new CreateTableRequest().withTableInput(tableInput).withDatabaseName(tbl.getDbName()));
                } catch (AmazonServiceException e){
-                   throw CatalogToHiveConverter.wrapInHiveException(e);
+                   throw catalogToHiveConverter.wrapInHiveException(e);
                } catch (Exception e){
                    String msg = "Unable to create table: ";
                    throw new MetaException(msg + e);
@@ -111,7 +112,7 @@ public class NoFileSystemOpsAWSCatalogMetastoreClient extends AWSCatalogMetastor
         if (!needResult) {
             return null;
         }
-        return CatalogToHiveConverter.convertPartitions(partitionsCreated);
+        return catalogToHiveConverter.convertPartitions(partitionsCreated);
     }
 
     private List<Partition> batchCreatePartitions(
@@ -148,6 +149,7 @@ public class NoFileSystemOpsAWSCatalogMetastoreClient extends AWSCatalogMetastor
                                                     getClient(),
                                                     namespaceName,
                                                     tableName,
+                                                    catalogId,
                                                     partitionsOnePage,
                                                     ifNotExists)
                                             .createPartitions();

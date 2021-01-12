@@ -1,7 +1,7 @@
 package moonset.metastore.sync;
 
+import com.amazonaws.glue.catalog.util.AWSGlueConfig;
 import moonset.metastore.sync.exception.MetastoreException;
-import com.amazonaws.glue.catalog.metastore.AWSGlueClientFactory;
 import com.jcraft.jsch.JSchException;
 import com.jcraft.jsch.Session;
 
@@ -82,7 +82,7 @@ public class MetastoreClientFactory {
     public IMetaStoreClient getDataCatalogClient(String region) throws MetastoreException {
         try {
             HiveConf conf = new HiveConf();
-            conf.set(AWSGlueClientFactory.AWS_REGION, region);
+            conf.set(AWSGlueConfig.AWS_REGION, region);
             return new NoFileSystemOpsAWSCatalogMetastoreClient(conf);
         } catch (MetaException e) {
             throw new MetastoreException("can't new a metastoreclient.", e);
@@ -101,8 +101,8 @@ public class MetastoreClientFactory {
             throws MetastoreException {
         try {
             HiveConf conf = new HiveConf();
-            conf.set(AWSGlueClientFactory.AWS_REGION, region);
-            conf.set(AWSGlueClientFactory.AWS_CATALOG_CREDENTIALS_PROVIDER_FACTORY_CLASS,
+            conf.set(AWSGlueConfig.AWS_REGION, region);
+            conf.set(AWSGlueConfig.AWS_CATALOG_CREDENTIALS_PROVIDER_FACTORY_CLASS,
                     "moonset.metastore.sync.RoleBasedAWSCredentialsProviderFactory");
             conf.set(RoleBasedAWSCredentialsProviderFactory.ASSUME_ROLE, assumeRole);
 
